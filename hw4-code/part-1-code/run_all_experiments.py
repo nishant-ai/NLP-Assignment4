@@ -11,6 +11,45 @@ import re
 from datetime import datetime
 import shutil
 
+def check_and_fix_dependencies():
+    """Check and fix package dependencies before running experiments"""
+    print("Checking dependencies...")
+
+    # Check pyarrow
+    try:
+        import pyarrow as pa
+        if not hasattr(pa, 'PyExtensionType'):
+            print("⚠️  PyArrow version is incompatible. Upgrading...")
+            subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pyarrow>=12.0.0"],
+                         check=False, capture_output=True)
+            print("✓ PyArrow upgraded")
+    except ImportError:
+        print("Installing pyarrow...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "pyarrow>=12.0.0"],
+                     check=False, capture_output=True)
+
+    # Check NLTK data
+    try:
+        import nltk
+        try:
+            nltk.data.find('tokenizers/punkt')
+        except LookupError:
+            print("Downloading NLTK data...")
+            nltk.download('punkt', quiet=True)
+            nltk.download('wordnet', quiet=True)
+            nltk.download('omw-1.4', quiet=True)
+            print("✓ NLTK data downloaded")
+    except ImportError:
+        print("Installing nltk...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "nltk"],
+                     check=False, capture_output=True)
+        import nltk
+        nltk.download('punkt', quiet=True)
+        nltk.download('wordnet', quiet=True)
+        nltk.download('omw-1.4', quiet=True)
+
+    print("✓ Dependencies checked\n")
+
 class ExperimentRunner:
     def __init__(self):
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -302,6 +341,9 @@ class ExperimentRunner:
         print("=" * 80)
 
 def main():
+    # Fix dependencies first
+    check_and_fix_dependencies()
+
     runner = ExperimentRunner()
 
     try:
