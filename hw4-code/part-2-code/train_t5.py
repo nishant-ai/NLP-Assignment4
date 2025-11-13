@@ -131,26 +131,146 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
 
     return total_loss / total_tokens
         
-def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_path, model_record_path):
+def eval_epoch(args, model, dev_loader, gt_sql_path, model_sql_path, gt_record_path, model_record_path):
     '''
     You must implement the evaluation loop to be using during training. We recommend keeping track
     of the model loss on the SQL queries, the metrics compute_metrics returns (save_queries_and_records should be helpful)
-    and the model's syntax error rate. 
+    and the model's syntax error rate.
 
     To compute non-loss metrics, you will need to perform generation with the model. Greedy decoding or beam search
     should both provide good results. If you find that this component of evaluation takes too long with your compute,
     we found the cross-entropy loss (in the evaluation set) to be well (albeit imperfectly) correlated with F1 performance.
     '''
-    # TODO
+    from transformers import T5TokenizerFast
+    import pickle
+
     model.eval()
-    return 0, 0, 0, 0, 0
+    tokenizer = T5TokenizerFast.from_pretrained('google-t5/t5-small')
+
+    total_loss = 0
+    total_tokens = 0
+    all_generated_sql = []
+    criterion = nn.CrossEntropyLoss()
+
+    with torch.no_grad():
+        for batch in tqdm(dev_loader, desc="Evaluating"):
+            # Unpack batch
+            encoder_input, encoder_mask, decoder_input, decoder_targets, _ = batch
+
+            # Move to device
+            encoder_input = encoder_input.to(DEVICE)
+            encoder_mask = encoder_mask.to(DEVICE)
+            decoder_input = decoder_input.to(DEVICE)
+            decoder_targets = decoder_targets.to(DEVICE)
+
+            # Compute loss (for monitoring)
+            logits = model(
+                input_ids=encoder_input,
+                attention_mask=encoder_mask,
+                decoder_input_ids=decoder_input,
+            )['logits']
+
+            non_pad = decoder_targets != PAD_IDX
+            loss = criterion(logits[non_pad], decoder_targets[non_pad])
+
+            # Track loss
+            num_tokens = torch.sum(non_pad).item()
+            total_loss += loss.item() * num_tokens
+            total_tokens += num_tokens
+
+            # Generate SQL queries
+            output_ids = model.generate(
+                input_ids=encoder_input,
+                attention_mask=encoder_mask,
+                max_length=512,
+                num_beams=4,  # Beam search for better quality
+                early_stopping=True
+            )
+
+            # Decode to strings
+            decoded_sql = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
+            all_generated_sql.extend(decoded_sql)
+
+    # Calculate average loss
+    avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
+
+    # Create results directory if it doesn't exist
+    os.makedirs(os.path.dirname(model_sql_path), exist_ok=True)
+    os.makedirs(os.path.dirname(model_record_path), exist_ok=True)
+
+    # Write generated SQL queries to file
+    with open(model_sql_path, 'w') as f:
+        for sql_query in all_generated_sql:
+            f.write(sql_query + '\n')
+
+    # Save queries and execute them to get database records
+    save_queries_and_records(gt_sql_path, model_sql_path, gt_record_path, model_record_path)
+
+    # Compute metrics
+    metrics = compute_metrics(gt_record_path, model_record_path)
+    record_f1 = metrics['record_f1']
+    record_em = metrics['record_em']
+    sql_em = metrics['sql_em']
+
+    # Calculate syntax error rate
+    with open(model_record_path, 'rb') as f:
+        model_records = pickle.load(f)
+
+    # Count queries that failed to execute (returned None or empty list)
+    error_count = sum(1 for record in model_records if record is None or record == [])
+    error_rate = error_count / len(model_records) if len(model_records) > 0 else 0
+
+    return avg_loss, record_f1, record_em, sql_em, error_rate
         
 def test_inference(args, model, test_loader, model_sql_path, model_record_path):
     '''
-    You must implement inference to compute your model's generated SQL queries and its associated 
+    You must implement inference to compute your model's generated SQL queries and its associated
     database records. Implementation should be very similar to eval_epoch.
     '''
-    pass
+    from transformers import T5TokenizerFast
+
+    model.eval()
+    tokenizer = T5TokenizerFast.from_pretrained('google-t5/t5-small')
+
+    all_generated_sql = []
+
+    with torch.no_grad():
+        for batch in tqdm(test_loader, desc="Test Inference"):
+            # For test set, collate_fn returns: encoder_ids, encoder_mask, initial_decoder_inputs
+            encoder_input, encoder_mask, _ = batch
+
+            # Move to device
+            encoder_input = encoder_input.to(DEVICE)
+            encoder_mask = encoder_mask.to(DEVICE)
+
+            # Generate SQL queries
+            output_ids = model.generate(
+                input_ids=encoder_input,
+                attention_mask=encoder_mask,
+                max_length=512,
+                num_beams=4,  # Beam search for better quality
+                early_stopping=True
+            )
+
+            # Decode to strings
+            decoded_sql = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
+            all_generated_sql.extend(decoded_sql)
+
+    # Create results directory if it doesn't exist
+    os.makedirs(os.path.dirname(model_sql_path), exist_ok=True)
+    os.makedirs(os.path.dirname(model_record_path), exist_ok=True)
+
+    # Write generated SQL queries to file
+    with open(model_sql_path, 'w') as f:
+        for sql_query in all_generated_sql:
+            f.write(sql_query + '\n')
+
+    # Execute SQL queries and save database records
+    # For test set, we don't have ground truth, so we pass None
+    save_queries_and_records(None, model_sql_path, None, model_record_path)
+
+    print(f"Test inference complete. Generated {len(all_generated_sql)} SQL queries.")
+    print(f"Results saved to: {model_sql_path} and {model_record_path}")
 
 def main():
     # Get key arguments
