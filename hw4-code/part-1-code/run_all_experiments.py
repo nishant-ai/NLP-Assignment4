@@ -15,18 +15,41 @@ def check_and_fix_dependencies():
     """Check and fix package dependencies before running experiments"""
     print("Checking dependencies...")
 
+    needs_restart = False
+
     # Check pyarrow
     try:
         import pyarrow as pa
         if not hasattr(pa, 'PyExtensionType'):
             print("⚠️  PyArrow version is incompatible. Upgrading...")
-            subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pyarrow>=12.0.0"],
-                         check=False, capture_output=True)
-            print("✓ PyArrow upgraded")
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "uninstall", "pyarrow", "-y"],
+                capture_output=True, text=True
+            )
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "pyarrow>=12.0.0"],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                print("✓ PyArrow upgraded - please run the script again")
+                needs_restart = True
+            else:
+                print(f"✗ Failed to upgrade pyarrow: {result.stderr}")
+                print("\nPlease manually run:")
+                print("  pip uninstall pyarrow -y && pip install 'pyarrow>=12.0.0'")
+                sys.exit(1)
     except ImportError:
         print("Installing pyarrow...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "pyarrow>=12.0.0"],
-                     check=False, capture_output=True)
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "pyarrow>=12.0.0"],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            print("✓ PyArrow installed - please run the script again")
+            needs_restart = True
+        else:
+            print(f"✗ Failed to install pyarrow: {result.stderr}")
+            sys.exit(1)
 
     # Check NLTK data
     try:
@@ -47,8 +70,16 @@ def check_and_fix_dependencies():
         nltk.download('punkt', quiet=True)
         nltk.download('wordnet', quiet=True)
         nltk.download('omw-1.4', quiet=True)
+        print("✓ NLTK installed")
 
-    print("✓ Dependencies checked\n")
+    if needs_restart:
+        print("\n" + "="*80)
+        print("Dependencies have been updated. Please run the script again:")
+        print("  python3 run_all_experiments.py")
+        print("="*80)
+        sys.exit(0)
+
+    print("✓ All dependencies OK\n")
 
 class ExperimentRunner:
     def __init__(self):
