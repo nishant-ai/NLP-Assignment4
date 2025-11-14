@@ -17,7 +17,7 @@
 singularity exec --bind /scratch --nv --overlay /scratch/ns6287/overlay-25GB-500K.ext3:rw /scratch/ns6287/ubuntu-20.04.3.sif /bin/bash << 'EOF'
 source /ext3/miniconda3/etc/profile.d/conda.sh
 conda activate hw4-part-2-nlp
-cd /scratch/ns6287/NLP-A-4/hw4-code/part-2-code
+cd /home/ns6287/NLP-Assignment4/hw4-code/part-2-code
 
 # Create results directory
 RESULTS_DIR="experiment_results_$(date +%Y%m%d_%H%M%S)"
