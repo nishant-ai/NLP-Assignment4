@@ -14,7 +14,7 @@
 #SBATCH --mail-user=ns6287@nyu.edu
 
 # Run experiments inside Singularity container
-singularity exec --bind /scratch --nv --overlay /scratch/ns6287/overlay-25GB-500K.ext3:rw /scratch/ns6287/ubuntu-20.04.3.sif /bin/bash -c "
+singularity exec --bind /scratch --nv --overlay /scratch/ns6287/overlay-25GB-500K.ext3:rw /scratch/ns6287/ubuntu-20.04.3.sif /bin/bash << 'EOF'
 source /ext3/miniconda3/etc/profile.d/conda.sh
 conda activate hw4-part-2-nlp
 cd /scratch/ns6287/NLP-A-4/hw4-code/part-2-code
@@ -82,11 +82,11 @@ run_experiment() {
         echo "$exp_name,$f1,$em,$sql_em,$loss,$error_rate,$RUNTIME" >> $RESULTS_FILE
 
         echo "" | tee -a $LOG_FILE
-        echo "✓ Completed: $exp_name (${RUNTIME}m)" | tee -a $LOG_FILE
+        echo "[DONE] Completed: $exp_name (${RUNTIME}m)" | tee -a $LOG_FILE
         echo "  F1=$f1, EM=$em, SQL_EM=$sql_em, Loss=$loss, Error=$error_rate%" | tee -a $LOG_FILE
     else
         echo "$exp_name,ERROR,ERROR,ERROR,ERROR,ERROR,$RUNTIME" >> $RESULTS_FILE
-        echo "✗ ERROR: Could not extract results for $exp_name" | tee -a $LOG_FILE
+        echo "[ERROR] Could not extract results for $exp_name" | tee -a $LOG_FILE
     fi
 }
 
@@ -141,7 +141,8 @@ echo "" | tee -a $LOG_FILE
 cp $RESULTS_FILE experiment_results_latest.csv
 cp $LOG_FILE experiments_log_latest.txt
 
-echo 'Latest results also copied to:'
-echo '  - experiment_results_latest.csv'
-echo '  - experiments_log_latest.txt'
-"
+echo "Latest results also copied to:"
+echo "  - experiment_results_latest.csv"
+echo "  - experiments_log_latest.txt"
+
+EOF
