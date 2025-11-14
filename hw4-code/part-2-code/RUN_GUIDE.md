@@ -10,7 +10,7 @@ pip install -r requirements.txt
 ## Quick Start - Run One Experiment
 
 ```bash
-python train_t5.py --finetune --max_n_epochs 10 --learning_rate 1e-4 --batch_size 16 --patience_epochs --experiment_name my_first_run
+python train_t5.py --finetune --max_n_epochs 10 --learning_rate 1e-4 --batch_size 16 --patience_epochs 3 --experiment_name my_first_run
 ```
 
 ## Hyperparameter Tuning
