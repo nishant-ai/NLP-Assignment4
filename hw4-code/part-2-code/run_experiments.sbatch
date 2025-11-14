@@ -1,24 +1,23 @@
 #!/bin/bash
 
-#SBATCH --job-name=t5_sql_experiments
-#SBATCH --output=slurm_experiments_%j.out
-#SBATCH --error=slurm_experiments_%j.err
-#SBATCH --time=48:00:00
-#SBATCH --mem=32GB
+#SBATCH --job-name=t5_sql_exp
+#SBATCH --account=ds_ga_1011_001-2025fa
+#SBATCH --partition=c12m85-a100-1
+#SBATCH --open-mode=append
+#SBATCH --output=./%j_%x.out
+#SBATCH --error=./%j_%x.err
+#SBATCH --export=ALL
+#SBATCH --time=24:00:00
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
+#SBATCH --requeue
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=ns6287@nyu.edu
 
-# Load modules
-module purge
-module load anaconda3/2020.07
-
-# Activate your conda environment
-source activate hw4-part-2-nlp
-
-# Change to your working directory
-cd /scratch/$USER/NLP-A-4/hw4-code/part-2-code
+# Run experiments inside Singularity container
+singularity exec --bind /scratch --nv --overlay /scratch/ns6287/overlay-25GB-500K.ext3:rw /scratch/ns6287/ubuntu-20.04.3.sif /bin/bash -c "
+source /ext3/miniconda3/etc/profile.d/conda.sh
+conda activate hw4-part-2-nlp
+cd /scratch/ns6287/NLP-A-4/hw4-code/part-2-code
 
 # Create results directory
 RESULTS_DIR="experiment_results_$(date +%Y%m%d_%H%M%S)"
@@ -142,6 +141,7 @@ echo "" | tee -a $LOG_FILE
 cp $RESULTS_FILE experiment_results_latest.csv
 cp $LOG_FILE experiments_log_latest.txt
 
-echo "Latest results also copied to:"
-echo "  - experiment_results_latest.csv"
-echo "  - experiments_log_latest.txt"
+echo 'Latest results also copied to:'
+echo '  - experiment_results_latest.csv'
+echo '  - experiments_log_latest.txt'
+"
