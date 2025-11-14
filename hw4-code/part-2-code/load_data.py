@@ -13,6 +13,19 @@ import torch
 
 PAD_IDX = 0
 
+def get_schema_string():
+    import json
+    with open('data/flight_database.schema', 'r') as f:
+        schema = json.load(f)
+    
+    schema_string = ""
+    for table_name, table_info in schema['ents'].items():
+        schema_string += f"{table_name}: "
+        col_names = [col_name for col_name in table_info.keys()]
+        schema_string += ", ".join(col_names) + " | "
+    
+    return schema_string
+
 class T5Dataset(Dataset):
 
     def __init__(self, data_folder, split):
@@ -27,6 +40,7 @@ class T5Dataset(Dataset):
             * Class behavior should be different on the test set.
         '''
         self.tokenizer = T5TokenizerFast.from_pretrained('google-t5/t5-small')
+        self.schema_string = get_schema_string()
         self.split = split
         self.encoder_inputs, self.decoder_targets = self.process_data(data_folder,split, self.tokenizer)
 
@@ -50,7 +64,8 @@ class T5Dataset(Dataset):
         encoder_inputs = []
 
         for nl_query in nl_queries:
-            encoded = tokenizer(nl_query,
+            input_text = f"Schema: {self.schema_string} | Query: {nl_query}"
+            encoded = tokenizer(input_text,
                                 truncation=True,
                                 max_length=512,
                                 return_tensors='pt',
@@ -114,15 +129,19 @@ def normal_collate_fn(batch):
     encoder_mask = (encoder_ids != PAD_IDX).long()
     
     # 4. Create decoder inputs (shift right + add BOS token)
-    # T5 uses <extra_id_0> as BOS token (token_id = 32099)
+    # T5 uses pad token (0) as the decoder start token
     tokenizer = T5TokenizerFast.from_pretrained('google-t5/t5-small')
-    bos_token_id = tokenizer.additional_special_tokens_ids[0]  # <extra_id_0>
-    
+    bos_token_id = tokenizer.pad_token_id  # Use pad token (0) as BOS for T5
+
     # Prepend BOS token to each decoder target
     decoder_inputs = []
     for target in decoder_targets:
-        # Create decoder input: [BOS, target[0], target[1], ..., target[n-1]]
-        decoder_input = torch.cat([torch.tensor([bos_token_id]), target[:-1]])
+        if len(target) > 0:
+            # Create decoder input: [BOS, target[0], target[1], ..., target[n-1]]
+            decoder_input = torch.cat([torch.tensor([bos_token_id]), target[:-1]])
+        else:
+            # Empty target, just use BOS
+            decoder_input = torch.tensor([bos_token_id])
         decoder_inputs.append(decoder_input)
     
     # 5. Pad decoder inputs
@@ -132,6 +151,7 @@ def normal_collate_fn(batch):
     decoder_target_ids = pad_sequence(decoder_targets, batch_first=True, padding_value=PAD_IDX)
     
     # 7. Initial decoder inputs (for generation during evaluation)
+    # Note: bos_token_id was set to pad_token_id above
     initial_decoder_inputs = torch.full((len(batch), 1), bos_token_id, dtype=torch.long)
     
     return encoder_ids, encoder_mask, decoder_input_ids, decoder_target_ids, initial_decoder_inputs
@@ -160,7 +180,7 @@ def test_collate_fn(batch):
     
     # 4. Create initial decoder input (BOS token)
     tokenizer = T5TokenizerFast.from_pretrained('google-t5/t5-small')
-    bos_token_id = tokenizer.additional_special_tokens_ids[0]
+    bos_token_id = tokenizer.pad_token_id  # Use pad token (0) as BOS for T5
     initial_decoder_inputs = torch.full((len(batch), 1), bos_token_id, dtype=torch.long)
     
     return encoder_ids, encoder_mask, initial_decoder_inputs

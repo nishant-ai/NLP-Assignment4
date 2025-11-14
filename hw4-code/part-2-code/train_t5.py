@@ -61,7 +61,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler):
     args.checkpoint_dir = checkpoint_dir
     experiment_name = 'ft_experiment'
     gt_sql_path = os.path.join(f'data/dev.sql')
-    gt_record_path = os.path.join(f'records/dev_gt_records.pkl')
+    gt_record_path = os.path.join(f'records/ground_truth_dev.pkl')
     model_sql_path = os.path.join(f'results/t5_{model_type}_{experiment_name}_dev.sql')
     model_record_path = os.path.join(f'records/t5_{model_type}_{experiment_name}_dev.pkl')
     for epoch in range(args.max_n_epochs):
@@ -198,27 +198,16 @@ def eval_epoch(args, model, dev_loader, gt_sql_path, model_sql_path, gt_record_p
     os.makedirs(os.path.dirname(model_sql_path), exist_ok=True)
     os.makedirs(os.path.dirname(model_record_path), exist_ok=True)
 
-    # Write generated SQL queries to file
-    with open(model_sql_path, 'w') as f:
-        for sql_query in all_generated_sql:
-            f.write(sql_query + '\n')
-
     # Save queries and execute them to get database records
-    save_queries_and_records(gt_sql_path, model_sql_path, gt_record_path, model_record_path)
+    save_queries_and_records(all_generated_sql, model_sql_path, model_record_path)
 
-    # Compute metrics
-    metrics = compute_metrics(gt_record_path, model_record_path)
-    record_f1 = metrics['record_f1']
-    record_em = metrics['record_em']
-    sql_em = metrics['sql_em']
+    # Compute metrics (returns: sql_em, record_em, record_f1, error_msgs)
+    # Pass None for record paths to compute them on the fly
+    sql_em, record_em, record_f1, error_msgs = compute_metrics(gt_sql_path, model_sql_path, gt_record_path, model_record_path)
 
-    # Calculate syntax error rate
-    with open(model_record_path, 'rb') as f:
-        model_records = pickle.load(f)
-
-    # Count queries that failed to execute (returned None or empty list)
-    error_count = sum(1 for record in model_records if record is None or record == [])
-    error_rate = error_count / len(model_records) if len(model_records) > 0 else 0
+    # Calculate syntax error rate from error messages
+    error_count = sum(1 for msg in error_msgs if msg != "")
+    error_rate = error_count / len(error_msgs) if len(error_msgs) > 0 else 0
 
     return avg_loss, record_f1, record_em, sql_em, error_rate
         
@@ -260,14 +249,8 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
     os.makedirs(os.path.dirname(model_sql_path), exist_ok=True)
     os.makedirs(os.path.dirname(model_record_path), exist_ok=True)
 
-    # Write generated SQL queries to file
-    with open(model_sql_path, 'w') as f:
-        for sql_query in all_generated_sql:
-            f.write(sql_query + '\n')
-
-    # Execute SQL queries and save database records
-    # For test set, we don't have ground truth, so we pass None
-    save_queries_and_records(None, model_sql_path, None, model_record_path)
+    # Save queries and execute them to get database records
+    save_queries_and_records(all_generated_sql, model_sql_path, model_record_path)
 
     print(f"Test inference complete. Generated {len(all_generated_sql)} SQL queries.")
     print(f"Results saved to: {model_sql_path} and {model_record_path}")
