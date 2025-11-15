@@ -169,19 +169,29 @@ def compute_record_F1(gt_records: List[Any], model_records: List[Any]):
     F1s = []
     for gt_rec, model_rec in zip(gt_records, model_records):
         gt_set = set(gt_rec)
-        model_set = set(model_rec)        
+        model_set = set(model_rec)
 
-        precision_total = len(model_set)
-        if precision_total == 0:
-            precision = 1
-        else:
-            precision = len([rec for rec in model_set if rec in gt_set]) / precision_total
-    
-        recall_total = len(gt_set)    
-        if recall_total == 0:
-            recall = 1
-        else:
-            recall = len([rec for rec in gt_set if rec in model_set]) / recall_total
+        # Special case: both empty (model and GT both return no records)
+        # This is a perfect match, so F1 = 1.0
+        if len(gt_set) == 0 and len(model_set) == 0:
+            F1s.append(1.0)
+            continue
+
+        # Special case: model returns nothing but GT has records
+        # This is a complete failure, so F1 = 0.0
+        if len(model_set) == 0:
+            F1s.append(0.0)
+            continue
+
+        # Special case: GT is empty but model returns records
+        # This is also a failure (hallucinated records), so F1 = 0.0
+        if len(gt_set) == 0:
+            F1s.append(0.0)
+            continue
+
+        # Normal case: both have records, compute precision and recall
+        precision = len([rec for rec in model_set if rec in gt_set]) / len(model_set)
+        recall = len([rec for rec in gt_set if rec in model_set]) / len(gt_set)
 
         F1 = 2 * precision * recall / (precision + recall + 1e-8)
         F1s.append(F1)

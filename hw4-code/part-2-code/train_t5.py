@@ -133,24 +133,164 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
         
 def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_path, model_record_path):
     '''
-    You must implement the evaluation loop to be using during training. We recommend keeping track
-    of the model loss on the SQL queries, the metrics compute_metrics returns (save_queries_and_records should be helpful)
-    and the model's syntax error rate. 
+    WHAT: Evaluate model on dev set during training
+    WHY:
+      - Need to track progress and decide when to stop training
+      - Compute both loss (for training signal) and F1 (for actual performance)
+      - Save best model based on F1, not loss
 
-    To compute non-loss metrics, you will need to perform generation with the model. Greedy decoding or beam search
-    should both provide good results. If you find that this component of evaluation takes too long with your compute,
-    we found the cross-entropy loss (in the evaluation set) to be well (albeit imperfectly) correlated with F1 performance.
+    BASELINE APPROACH:
+      - Use beam search (num_beams=5) for better quality than greedy
+      - Compute loss to track training progress
+      - Execute generated SQL on database to get F1 score
+      - Track error rate to identify syntax issues
     '''
-    # TODO
-    model.eval()
-    return 0, 0, 0, 0, 0
+    from transformers import T5TokenizerFast
+
+    print("\n" + "="*60)
+    print("EVALUATING ON DEV SET")
+    print("="*60)
+
+    model.eval()  # Set to eval mode (disables dropout, etc.)
+    tokenizer = T5TokenizerFast.from_pretrained('google-t5/t5-small')
+
+    # For loss calculation
+    total_loss = 0
+    total_tokens = 0
+    criterion = nn.CrossEntropyLoss()
+
+    # For SQL generation
+    all_generated_queries = []
+
+    with torch.no_grad():  # Don't compute gradients during evaluation
+        for encoder_input, encoder_mask, decoder_input, decoder_targets, initial_decoder_input in tqdm(dev_loader, desc="Evaluating"):
+            # Move to GPU
+            encoder_input = encoder_input.to(DEVICE)
+            encoder_mask = encoder_mask.to(DEVICE)
+            decoder_input = decoder_input.to(DEVICE)
+            decoder_targets = decoder_targets.to(DEVICE)
+
+            # ========== STEP 1: Compute loss (for monitoring) ==========
+            # Forward pass with teacher forcing
+            logits = model(
+                input_ids=encoder_input,
+                attention_mask=encoder_mask,
+                decoder_input_ids=decoder_input,
+            )['logits']
+
+            # Compute loss only on non-padding tokens
+            # WHY: Padding tokens are meaningless, shouldn't affect loss
+            non_pad = decoder_targets != PAD_IDX
+            loss = criterion(logits[non_pad], decoder_targets[non_pad])
+
+            num_tokens = torch.sum(non_pad).item()
+            total_loss += loss.item() * num_tokens
+            total_tokens += num_tokens
+
+            # ========== STEP 2: Generate SQL queries ==========
+            # Use beam search for better quality outputs
+            # WHY: Beam search explores multiple hypotheses, better than greedy
+            generated_ids = model.generate(
+                input_ids=encoder_input,
+                attention_mask=encoder_mask,
+                max_length=512,          # Max SQL length (can tune this)
+                num_beams=5,             # BASELINE: 5 beams is good balance
+                early_stopping=True,     # Stop when all beams have EOS
+                decoder_start_token_id=tokenizer.pad_token_id,  # Start token
+            )
+
+            # Decode token IDs back to text
+            # skip_special_tokens=True removes <pad>, </s>, etc.
+            generated_queries = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+            all_generated_queries.extend(generated_queries)
+
+    # ========== STEP 3: Save queries and execute on database ==========
+    print(f"\nGenerated {len(all_generated_queries)} SQL queries")
+    print("Executing queries on database...")
+    save_queries_and_records(all_generated_queries, model_sql_path, model_record_path)
+
+    # ========== STEP 4: Compute metrics ==========
+    print("Computing metrics...")
+    sql_em, record_em, record_f1, error_msgs = compute_metrics(
+        gt_sql_pth, model_sql_path,
+        gt_record_path, model_record_path
+    )
+
+    # Calculate error rate (how many queries caused SQL errors)
+    num_errors = sum(1 for msg in error_msgs if msg != "")
+    error_rate = num_errors / len(error_msgs)
+
+    # Average loss
+    avg_loss = total_loss / total_tokens
+
+    print(f"\n{'='*60}")
+    print(f"EVALUATION RESULTS:")
+    print(f"  Loss: {avg_loss:.4f}")
+    print(f"  Record F1: {record_f1:.4f} (PRIMARY METRIC)")
+    print(f"  Record EM: {record_em:.4f}")
+    print(f"  SQL EM: {sql_em:.4f}")
+    print(f"  Error Rate: {error_rate*100:.2f}%")
+    print(f"{'='*60}\n")
+
+    return avg_loss, record_f1, record_em, sql_em, error_rate
         
 def test_inference(args, model, test_loader, model_sql_path, model_record_path):
     '''
-    You must implement inference to compute your model's generated SQL queries and its associated 
-    database records. Implementation should be very similar to eval_epoch.
+    WHAT: Run inference on test set and save predictions
+    WHY:
+      - Generate final predictions for submission
+      - No ground truth available, so can't compute metrics
+      - Save SQL queries and database records for grading
+
+    IMPLEMENTATION: Almost identical to eval_epoch, but:
+      - No loss computation (no targets)
+      - No metrics computation (no ground truth)
+      - Just generate and save
     '''
-    pass
+    from transformers import T5TokenizerFast
+
+    print("\n" + "="*60)
+    print("RUNNING INFERENCE ON TEST SET")
+    print("="*60)
+
+    model.eval()  # Set to eval mode
+    tokenizer = T5TokenizerFast.from_pretrained('google-t5/t5-small')
+
+    all_generated_queries = []
+
+    with torch.no_grad():  # No gradients needed for inference
+        for encoder_input, encoder_mask, initial_decoder_input in tqdm(test_loader, desc="Generating SQL"):
+            # Move to GPU
+            encoder_input = encoder_input.to(DEVICE)
+            encoder_mask = encoder_mask.to(DEVICE)
+
+            # ========== GENERATE SQL QUERIES ==========
+            # Same generation settings as evaluation
+            # WHY: Consistency with dev set evaluation
+            generated_ids = model.generate(
+                input_ids=encoder_input,
+                attention_mask=encoder_mask,
+                max_length=512,          # Same as dev
+                num_beams=5,             # Same as dev
+                early_stopping=True,
+                decoder_start_token_id=tokenizer.pad_token_id,
+            )
+
+            # Decode to text
+            generated_queries = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+            all_generated_queries.extend(generated_queries)
+
+    # ========== SAVE RESULTS ==========
+    print(f"\nGenerated {len(all_generated_queries)} SQL queries for test set")
+    print("Executing queries on database and saving results...")
+    save_queries_and_records(all_generated_queries, model_sql_path, model_record_path)
+
+    print(f"\n{'='*60}")
+    print(f"TEST INFERENCE COMPLETE!")
+    print(f"  SQL queries saved to: {model_sql_path}")
+    print(f"  Database records saved to: {model_record_path}")
+    print(f"{'='*60}\n")
+    print("IMPORTANT: Submit these files to Gradescope for grading!")
 
 def main():
     # Get key arguments
