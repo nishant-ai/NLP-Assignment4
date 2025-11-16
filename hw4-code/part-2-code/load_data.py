@@ -48,8 +48,14 @@ class T5Dataset(Dataset):
         WHAT: Load files and tokenize both inputs and outputs
         WHY: Need to prepare data in the format T5 expects
         '''
-        # ========== STEP 1: Load raw text files ==========
+        # ========== STEP 1: Load schema and raw text files ==========
         print(f"Loading data from {data_folder}/{split}...")
+
+        # Load database schema
+        schema_path = os.path.join(data_folder, 'schema_prompt.txt')
+        with open(schema_path, 'r') as f:
+            self.schema_text = f.read().strip()
+        print(f"  - Loaded database schema")
 
         nl_path = os.path.join(data_folder, f'{split}.nl')
         with open(nl_path, 'r') as f:
@@ -68,13 +74,17 @@ class T5Dataset(Dataset):
             print(f"  - No SQL queries (test set)")
 
         # ========== STEP 2: Tokenize encoder inputs (NL queries) ==========
-        print("Tokenizing natural language queries...")
+        print("Tokenizing natural language queries with schema context...")
         self.encoder_inputs = []
 
         for nl in tqdm(self.nl_queries, desc="Encoding inputs"):
-            # Add task prefix - T5 was pretrained with task descriptions!
-            # WHY: Helps model understand what transformation to perform
-            text = f"translate English to SQL: {nl}"
+            # Include database schema in the prompt (blog-style improvement!)
+            # WHY: Provides table/column context so model doesn't need to memorize schema
+            text = f"""{self.schema_text}
+
+Question: {nl}
+
+SQL:"""
 
             # Tokenize with T5 tokenizer
             # add_special_tokens=True adds </s> (EOS) automatically

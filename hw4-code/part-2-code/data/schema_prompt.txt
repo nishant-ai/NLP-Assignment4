@@ -1,0 +1,16 @@
+Database Schema:
+
+Tables:
+- flight (flight_id, aircraft_code_sequence, airline_code, arrival_time, connections, departure_time, dual_carrier, flight_days, flight_number, from_airport, meal_code, stops, time_elapsed, to_airport)
+- airport (airport_code, airport_location, airport_name, country_name, minimum_connect_time, state_code, time_zone_code)
+- airport_service (airport_code, city_code, direction, miles_distant, minutes_distant)
+- city (city_code, city_name, country_name, state_code, time_zone_code)
+- state (country_name, state_code, state_name)
+- airline (airline_code, airline_name, note)
+- fare (fare_id, from_airport, to_airport, fare_basis_code, fare_airline, restriction_code, one_direction_cost, round_trip_cost, round_trip_required)
+- flight_fare (fare_id, flight_id)
+- date_day (month_number, day_number, year, day_name)
+- days (days_code, day_name)
+- flight_stop (flight_id, stop_number, stop_days, stop_airport, arrival_time, arrival_airline, arrival_flight_number, departure_time, departure_airline, departure_flight_number, stop_time)
+- aircraft (aircraft_code, aircraft_description, manufacturer, basic_type, engines, propulsion, wide_body, wing_span, length, weight, capacity, pay_load, cruising_speed, range_miles, pressurized)
+- time_zone (time_zone_code, time_zone_name, hours_from_gmt)
