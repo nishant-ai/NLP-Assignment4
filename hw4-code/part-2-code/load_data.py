@@ -1,3 +1,5 @@
+import sys
+import shutil
 import os, random, re, string
 from collections import Counter
 from tqdm import tqdm
@@ -241,3 +243,236 @@ def load_lines(path):
 def load_prompting_data(data_folder):
     # TODO
     return train_x, train_y, dev_x, dev_y, test_x
+
+
+if __name__ == "__main__":
+    print("\n" + "="*80)
+    print("TESTING load_data.py FUNCTIONS")
+    print("="*80)
+
+    # Create output directory for analysis files
+    output_dir = "load_data_outputs"
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"\nCreated output directory: {output_dir}/")
+
+    # Test parameters
+    batch_size = 4
+    test_batch_size = 8
+
+    with open(f"{output_dir}/analysis.txt", "w") as f:
+        f.write("="*80 + "\n")
+        f.write("LOAD_DATA.PY ANALYSIS OUTPUT\n")
+        f.write("="*80 + "\n\n")
+
+        # ========== Test 1: Load dataloaders ==========
+        print("\n" + "-"*80)
+        print("TEST 1: Loading dataloaders")
+        print("-"*80)
+        f.write("\n" + "-"*80 + "\n")
+        f.write("TEST 1: LOADING DATALOADERS\n")
+        f.write("-"*80 + "\n")
+
+        try:
+            train_loader, dev_loader, test_loader = load_t5_data(batch_size, test_batch_size)
+
+            f.write(f"\n✓ Successfully loaded all dataloaders\n")
+            f.write(f"  - Train batches: {len(train_loader)}\n")
+            f.write(f"  - Dev batches: {len(dev_loader)}\n")
+            f.write(f"  - Test batches: {len(test_loader)}\n")
+            f.write(f"  - Train batch size: {batch_size}\n")
+            f.write(f"  - Test/Dev batch size: {test_batch_size}\n")
+
+            print(f"✓ Train loader: {len(train_loader)} batches")
+            print(f"✓ Dev loader: {len(dev_loader)} batches")
+            print(f"✓ Test loader: {len(test_loader)} batches")
+
+        except Exception as e:
+            error_msg = f"✗ Error loading dataloaders: {str(e)}\n"
+            f.write(error_msg)
+            print(error_msg)
+            raise
+
+        # ========== Test 2: Examine train batch ==========
+        print("\n" + "-"*80)
+        print("TEST 2: Examining train batch structure")
+        print("-"*80)
+        f.write("\n" + "-"*80 + "\n")
+        f.write("TEST 2: TRAIN BATCH STRUCTURE\n")
+        f.write("-"*80 + "\n\n")
+
+        train_batch = next(iter(train_loader))
+        encoder_ids, encoder_mask, decoder_input_ids, decoder_target_ids, initial_decoder_inputs = train_batch
+
+        f.write(f"Train batch components:\n")
+        f.write(f"  1. encoder_ids shape: {encoder_ids.shape}\n")
+        f.write(f"  2. encoder_mask shape: {encoder_mask.shape}\n")
+        f.write(f"  3. decoder_input_ids shape: {decoder_input_ids.shape}\n")
+        f.write(f"  4. decoder_target_ids shape: {decoder_target_ids.shape}\n")
+        f.write(f"  5. initial_decoder_inputs shape: {initial_decoder_inputs.shape}\n\n")
+
+        print(f"Encoder IDs shape: {encoder_ids.shape}")
+        print(f"Encoder mask shape: {encoder_mask.shape}")
+        print(f"Decoder input IDs shape: {decoder_input_ids.shape}")
+        print(f"Decoder target IDs shape: {decoder_target_ids.shape}")
+        print(f"Initial decoder inputs shape: {initial_decoder_inputs.shape}")
+
+        # ========== Test 3: Decode and save examples ==========
+        print("\n" + "-"*80)
+        print("TEST 3: Decoding sample examples")
+        print("-"*80)
+        f.write("-"*80 + "\n")
+        f.write("TEST 3: DECODED SAMPLE EXAMPLES (First batch)\n")
+        f.write("-"*80 + "\n\n")
+
+        tokenizer = train_loader.dataset.tokenizer
+
+        for i in range(min(batch_size, encoder_ids.shape[0])):
+            f.write(f"\nExample {i+1}:\n")
+            f.write("-" * 40 + "\n")
+
+            # Decode encoder input (NL query)
+            encoder_text = tokenizer.decode(encoder_ids[i], skip_special_tokens=False)
+            f.write(f"ENCODER INPUT (NL):\n{encoder_text}\n\n")
+
+            # Decode decoder input
+            decoder_input_text = tokenizer.decode(decoder_input_ids[i], skip_special_tokens=False)
+            f.write(f"DECODER INPUT:\n{decoder_input_text}\n\n")
+
+            # Decode decoder target (SQL query)
+            decoder_target_text = tokenizer.decode(decoder_target_ids[i], skip_special_tokens=False)
+            f.write(f"DECODER TARGET (SQL):\n{decoder_target_text}\n\n")
+
+            # Show mask
+            mask_str = "".join(["1" if m else "0" for m in encoder_mask[i][:20]])
+            f.write(f"ENCODER MASK (first 20): {mask_str}...\n")
+            f.write(f"INITIAL DECODER TOKEN: {initial_decoder_inputs[i].tolist()}\n")
+
+            print(f"\nExample {i+1} - NL: {encoder_text[:60]}...")
+            print(f"Example {i+1} - SQL: {decoder_target_text[:60]}...")
+
+        # ========== Test 4: Test set batch ==========
+        print("\n" + "-"*80)
+        print("TEST 4: Examining test batch structure")
+        print("-"*80)
+        f.write("\n" + "-"*80 + "\n")
+        f.write("TEST 4: TEST BATCH STRUCTURE\n")
+        f.write("-"*80 + "\n\n")
+
+        test_batch = next(iter(test_loader))
+        test_encoder_ids, test_encoder_mask, test_initial_decoder = test_batch
+
+        f.write(f"Test batch components (no labels):\n")
+        f.write(f"  1. encoder_ids shape: {test_encoder_ids.shape}\n")
+        f.write(f"  2. encoder_mask shape: {test_encoder_mask.shape}\n")
+        f.write(f"  3. initial_decoder_inputs shape: {test_initial_decoder.shape}\n\n")
+
+        print(f"Test encoder IDs shape: {test_encoder_ids.shape}")
+        print(f"Test encoder mask shape: {test_encoder_mask.shape}")
+        print(f"Test initial decoder shape: {test_initial_decoder.shape}")
+
+        # Decode first test example
+        f.write("First test example:\n")
+        test_text = tokenizer.decode(test_encoder_ids[0], skip_special_tokens=False)
+        f.write(f"ENCODER INPUT (NL): {test_text}\n")
+        f.write(f"INITIAL DECODER TOKEN: {test_initial_decoder[0].tolist()}\n\n")
+
+        print(f"First test example: {test_text[:60]}...")
+
+        # ========== Test 5: Dataset statistics ==========
+        print("\n" + "-"*80)
+        print("TEST 5: Dataset statistics")
+        print("-"*80)
+        f.write("-"*80 + "\n")
+        f.write("TEST 5: DATASET STATISTICS\n")
+        f.write("-"*80 + "\n\n")
+
+        train_dataset = train_loader.dataset
+        dev_dataset = dev_loader.dataset
+        test_dataset = test_loader.dataset
+
+        # Calculate sequence length statistics
+        train_encoder_lengths = [len(seq) for seq in train_dataset.encoder_inputs]
+        train_decoder_lengths = [len(seq) for seq in train_dataset.decoder_targets]
+
+        f.write(f"TRAIN DATASET:\n")
+        f.write(f"  Total examples: {len(train_dataset)}\n")
+        f.write(f"  Encoder lengths - Min: {min(train_encoder_lengths)}, Max: {max(train_encoder_lengths)}, Avg: {sum(train_encoder_lengths)/len(train_encoder_lengths):.2f}\n")
+        f.write(f"  Decoder lengths - Min: {min(train_decoder_lengths)}, Max: {max(train_decoder_lengths)}, Avg: {sum(train_decoder_lengths)/len(train_decoder_lengths):.2f}\n\n")
+
+        dev_encoder_lengths = [len(seq) for seq in dev_dataset.encoder_inputs]
+        dev_decoder_lengths = [len(seq) for seq in dev_dataset.decoder_targets]
+
+        f.write(f"DEV DATASET:\n")
+        f.write(f"  Total examples: {len(dev_dataset)}\n")
+        f.write(f"  Encoder lengths - Min: {min(dev_encoder_lengths)}, Max: {max(dev_encoder_lengths)}, Avg: {sum(dev_encoder_lengths)/len(dev_encoder_lengths):.2f}\n")
+        f.write(f"  Decoder lengths - Min: {min(dev_decoder_lengths)}, Max: {max(dev_decoder_lengths)}, Avg: {sum(dev_decoder_lengths)/len(dev_decoder_lengths):.2f}\n\n")
+
+        test_encoder_lengths = [len(seq) for seq in test_dataset.encoder_inputs]
+
+        f.write(f"TEST DATASET:\n")
+        f.write(f"  Total examples: {len(test_dataset)}\n")
+        f.write(f"  Encoder lengths - Min: {min(test_encoder_lengths)}, Max: {max(test_encoder_lengths)}, Avg: {sum(test_encoder_lengths)/len(test_encoder_lengths):.2f}\n")
+        f.write(f"  No decoder targets (test set)\n\n")
+
+        print(f"\nTrain dataset: {len(train_dataset)} examples")
+        print(f"Dev dataset: {len(dev_dataset)} examples")
+        print(f"Test dataset: {len(test_dataset)} examples")
+
+        # ========== Test 6: Save sample raw data ==========
+        print("\n" + "-"*80)
+        print("TEST 6: Saving raw data samples")
+        print("-"*80)
+        f.write("-"*80 + "\n")
+        f.write("TEST 6: RAW DATA SAMPLES\n")
+        f.write("-"*80 + "\n\n")
+
+        with open(f"{output_dir}/train_samples.txt", "w") as train_file:
+            train_file.write("TRAIN SET SAMPLES (First 10)\n")
+            train_file.write("="*80 + "\n\n")
+            for i in range(min(10, len(train_dataset.nl_queries))):
+                train_file.write(f"Example {i+1}:\n")
+                train_file.write(f"NL:  {train_dataset.nl_queries[i]}\n")
+                train_file.write(f"SQL: {train_dataset.sql_queries[i]}\n\n")
+
+        with open(f"{output_dir}/dev_samples.txt", "w") as dev_file:
+            dev_file.write("DEV SET SAMPLES (First 10)\n")
+            dev_file.write("="*80 + "\n\n")
+            for i in range(min(10, len(dev_dataset.nl_queries))):
+                dev_file.write(f"Example {i+1}:\n")
+                dev_file.write(f"NL:  {dev_dataset.nl_queries[i]}\n")
+                dev_file.write(f"SQL: {dev_dataset.sql_queries[i]}\n\n")
+
+        with open(f"{output_dir}/test_samples.txt", "w") as test_file:
+            test_file.write("TEST SET SAMPLES (First 10)\n")
+            test_file.write("="*80 + "\n\n")
+            for i in range(min(10, len(test_dataset.nl_queries))):
+                test_file.write(f"Example {i+1}:\n")
+                test_file.write(f"NL:  {test_dataset.nl_queries[i]}\n")
+                test_file.write(f"SQL: (no labels for test set)\n\n")
+
+        f.write("✓ Saved raw data samples to separate files\n")
+        print("✓ Saved train_samples.txt")
+        print("✓ Saved dev_samples.txt")
+        print("✓ Saved test_samples.txt")
+
+        # ========== Summary ==========
+        f.write("\n" + "="*80 + "\n")
+        f.write("SUMMARY\n")
+        f.write("="*80 + "\n")
+        f.write("All tests completed successfully!\n")
+        f.write(f"\nOutput files created in {output_dir}/:\n")
+        f.write("  1. analysis.txt - This file with all test results\n")
+        f.write("  2. train_samples.txt - First 10 training examples\n")
+        f.write("  3. dev_samples.txt - First 10 dev examples\n")
+        f.write("  4. test_samples.txt - First 10 test examples\n")
+
+    print("\n" + "="*80)
+    print("ALL TESTS COMPLETED!")
+    print("="*80)
+    print(f"\nOutput files saved in '{output_dir}/' directory:")
+    print(f"  - analysis.txt")
+    print(f"  - train_samples.txt")
+    print(f"  - dev_samples.txt")
+    print(f"  - test_samples.txt")
+    print("\nYou can now analyze these files to verify everything works as expected.")
+    print("="*80)

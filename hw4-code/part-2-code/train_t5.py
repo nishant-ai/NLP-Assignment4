@@ -56,14 +56,17 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler):
     epochs_since_improvement = 0
 
     model_type = 'ft' if args.finetune else 'scr'
+    
     checkpoint_dir = os.path.join('checkpoints', f'{model_type}_experiments', args.experiment_name)
     os.makedirs(checkpoint_dir, exist_ok=True)
     args.checkpoint_dir = checkpoint_dir
     experiment_name = 'ft_experiment'
+    
     gt_sql_path = os.path.join(f'data/dev.sql')
     gt_record_path = os.path.join(f'records/ground_truth_dev.pkl')
     model_sql_path = os.path.join(f'results/t5_{model_type}_{experiment_name}_dev.sql')
     model_record_path = os.path.join(f'records/t5_{model_type}_{experiment_name}_dev.pkl')
+    
     for epoch in range(args.max_n_epochs):
         tr_loss = train_epoch(args, model, train_loader, optimizer, scheduler)
         print(f"Epoch {epoch}: Average train loss was {tr_loss}")
@@ -197,6 +200,9 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
                 max_new_tokens=256,      # Max new tokens to generate (not including input)
                 num_beams=5,             # BASELINE: 5 beams is good balance
                 early_stopping=True,     # Stop when all beams have EOS
+                decoder_start_token_id=tokenizer.pad_token_id,  # Match training setup
+                repetition_penalty=1.2,  # Penalize repeated tokens/phrases
+                no_repeat_ngram_size=3,  # Don't repeat any 3-gram
             )
 
             # Decode token IDs back to text
@@ -273,6 +279,9 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
                 max_new_tokens=256,      # Same as dev
                 num_beams=5,             # Same as dev
                 early_stopping=True,
+                decoder_start_token_id=tokenizer.pad_token_id,  # Match training setup
+                repetition_penalty=1.2,  # Penalize repeated tokens/phrases
+                no_repeat_ngram_size=3,  # Don't repeat any 3-gram
             )
 
             # Decode to text

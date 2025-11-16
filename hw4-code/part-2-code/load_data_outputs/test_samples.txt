@@ -1,0 +1,43 @@
+TEST SET SAMPLES (First 10)
+================================================================================
+
+Example 1:
+NL:  what flights go from dallas to phoenix
+SQL: (no labels for test set)
+
+Example 2:
+NL:  what flights go from phoenix to salt lake city
+SQL: (no labels for test set)
+
+Example 3:
+NL:  i need an early flight from milwaukee to denver
+SQL: (no labels for test set)
+
+Example 4:
+NL:  what types of ground transportation are available in denver
+SQL: (no labels for test set)
+
+Example 5:
+NL:  what flights go from denver to st. louis on tuesday morning
+SQL: (no labels for test set)
+
+Example 6:
+NL:  is ground transportation available in st. louis
+SQL: (no labels for test set)
+
+Example 7:
+NL:  i need to fly from st. louis to milwaukee on wednesday afternoon
+SQL: (no labels for test set)
+
+Example 8:
+NL:  flights from washington to seattle
+SQL: (no labels for test set)
+
+Example 9:
+NL:  flights from atlanta to seattle
+SQL: (no labels for test set)
+
+Example 10:
+NL:  flights from san diego to seattle
+SQL: (no labels for test set)
+
