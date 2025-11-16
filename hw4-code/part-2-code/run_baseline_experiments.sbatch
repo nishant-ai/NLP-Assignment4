@@ -166,25 +166,25 @@ run_experiment() {
 echo "Starting 5 Baseline Experiments..." | tee -a $LOG_FILE
 echo "" | tee -a $LOG_FILE
 
-# Experiment 1: Conservative (recommended baseline)
-# WHY: Lower LR is safer for fine-tuning, less risk of catastrophic forgetting
-run_experiment "baseline_lr1e4" 1e-4 16 20 3 "cosine" 1
+# Experiment 1: Standard baseline (most likely to work)
+# WHY: 3e-4 is the sweet spot for T5-small fine-tuning
+run_experiment "baseline_lr3e4" 3e-4 16 15 3 "cosine" 1
 
-# Experiment 2: Moderate (slightly higher LR)
-# WHY: May converge faster while still being stable
-run_experiment "baseline_lr3e4" 3e-4 16 20 3 "cosine" 1
+# Experiment 2: Higher LR for faster convergence
+# WHY: May reach good performance quicker
+run_experiment "baseline_lr5e4" 5e-4 16 15 3 "cosine" 1
 
-# Experiment 3: Standard (common fine-tuning LR)
-# WHY: Good balance, widely used for T5 fine-tuning
-run_experiment "baseline_lr5e4" 5e-4 16 20 3 "cosine" 1
+# Experiment 3: Even higher LR (aggressive but might work)
+# WHY: Test if faster learning helps with this task
+run_experiment "baseline_lr1e3" 1e-3 16 15 3 "cosine" 1
 
-# Experiment 4: Larger batch with lower LR
-# WHY: Larger batches can be more stable, compensate with lower LR
-run_experiment "baseline_bs32_lr1e4" 1e-4 32 20 3 "cosine" 1
+# Experiment 4: Conservative with longer training
+# WHY: Lower LR but more patience for stable convergence
+run_experiment "baseline_lr1e4_long" 1e-4 16 20 5 "cosine" 2
 
-# Experiment 5: More patience with moderate LR
-# WHY: Give model more time to converge, may find better optimum
-run_experiment "baseline_patience5_lr3e4" 3e-4 16 25 5 "cosine" 2
+# Experiment 5: Larger batch with medium LR
+# WHY: Batch 32 with 3e-4 balances stability and speed
+run_experiment "baseline_bs32_lr3e4" 3e-4 32 15 3 "cosine" 1
 
 # ============================================================
 # GENERATE FINAL SUMMARY
