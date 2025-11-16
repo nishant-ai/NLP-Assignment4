@@ -26,10 +26,54 @@
 
 singularity exec --bind /scratch --nv --overlay /scratch/ns6287/overlay-25GB-500K.ext3:rw /scratch/ns6287/ubuntu-20.04.3.sif /bin/bash << 'EOF'
 
-# Setup environment
+# Setup conda environment
 source /ext3/miniconda3/etc/profile.d/conda.sh
+
+# ============================================================
+# FRESH CLONE OF REPOSITORY
+# ============================================================
+echo "Setting up fresh environment with latest code..."
+echo ""
+
+# Set your GitHub repository URL here
+REPO_URL="https://github.com/nishant-ai/NLP-Assignment4.git"  # UPDATE THIS!
+PROJECT_DIR="/home/ns6287/NLP-Assignment4"
+
+# Remove old directory if it exists
+if [ -d "$PROJECT_DIR" ]; then
+    echo "Removing old project directory..."
+    rm -rf "$PROJECT_DIR"
+fi
+
+# Clone fresh repository
+echo "Cloning repository from $REPO_URL..."
+git clone "$REPO_URL" "$PROJECT_DIR"
+
+# Navigate to project
+cd "$PROJECT_DIR/hw4-code/part-2-code"
+echo "Working directory: $(pwd)"
+echo ""
+
+# ============================================================
+# SETUP CONDA ENVIRONMENT
+# ============================================================
+echo "Setting up conda environment..."
+
+# Check if environment exists, if not create it
+if ! conda env list | grep -q "hw4-part-2-nlp"; then
+    echo "Creating conda environment hw4-part-2-nlp..."
+    conda create -n hw4-part-2-nlp python=3.9 -y
+fi
+
+# Activate environment
 conda activate hw4-part-2-nlp
-cd /home/ns6287/NLP-Assignment4/hw4-code/part-2-code
+
+# Install requirements
+echo "Installing requirements..."
+pip install -r requirements.txt
+
+echo "Environment setup complete!"
+echo ""
 
 # ============================================================
 # CLEANUP OLD EXPERIMENTAL FILES
