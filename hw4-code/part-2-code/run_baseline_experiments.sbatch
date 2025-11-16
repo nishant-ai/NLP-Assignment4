@@ -31,6 +31,29 @@ source /ext3/miniconda3/etc/profile.d/conda.sh
 conda activate hw4-part-2-nlp
 cd /home/ns6287/NLP-Assignment4/hw4-code/part-2-code
 
+# ============================================================
+# CLEANUP OLD EXPERIMENTAL FILES
+# ============================================================
+echo "Cleaning up old experimental files from buggy code..."
+
+# Remove old checkpoints with hardcoded 'ft_experiment' name
+if [ -d "checkpoints/ft_experiments/ft_experiment" ]; then
+    echo "  - Removing checkpoints/ft_experiments/ft_experiment/"
+    rm -rf checkpoints/ft_experiments/ft_experiment/
+fi
+
+# Remove old result files with hardcoded 'ft_experiment' name
+echo "  - Removing old results/t5_ft_ft_experiment_*.sql files"
+rm -f results/t5_ft_ft_experiment_*.sql
+rm -f results/t5_scr_ft_experiment_*.sql
+
+echo "  - Removing old records/t5_ft_ft_experiment_*.pkl files"
+rm -f records/t5_ft_ft_experiment_*.pkl
+rm -f records/t5_scr_ft_experiment_*.pkl
+
+echo "Cleanup complete!"
+echo ""
+
 # Create experiment directory with timestamp
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 EXP_DIR="baseline_experiments_${TIMESTAMP}"
